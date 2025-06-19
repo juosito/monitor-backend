@@ -1,39 +1,24 @@
-import requests
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-
-ACCESS_TOKEN = "TU_ACCESS_TOKEN_AQUÍ"
+import requests
+import os
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],  # O poné tu frontend en producción
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+ACCESS_TOKEN = os.getenv("ACCESS_TOKEN")
 
 @app.get("/shipments")
 def get_shipments():
-    url = "https://api.mercadolibre.com/marketplace/shipments/search"
-    headers = {
-        "Authorization": f"Bearer {ACCESS_TOKEN}"
-    }
-    params = {
-        "status": "ready_to_ship",
-        "shipping_type": "fulfillment",
-        "limit": 50
-    }
-    response = requests.get(url, headers=headers, params=params)
-    shipments = response.json()
+    if not ACCESS_TOKEN:
+        return {"error": "Access token no definido."}
 
-    # Transformar a formato usable por el frontend
-    result = []
-    for s in shipments.get("results", []):
-        result.append({
-            "id": s["id"],
-            "name": s.get("receiver", {}).get("name", "Desconocido"),
-            "phone": s.get("receiver", {}).get("phone", "Sin teléfono")
-        })
-
-    return result
+    try:
+        url = "https://api.mercadolibre.com/marketplace/shipments/search"
+        headers = {
+            "Authorization": f"Bearer {ACCESS_TOKEN}"
+        }
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+        return data
+    except Exception as e:
+        return {"error": str(e)}
