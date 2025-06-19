@@ -5,7 +5,7 @@ import requests
 
 app = FastAPI()
 
-# CORS
+# Permitir acceso desde cualquier frontend
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -14,49 +14,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Usuarios para login
-USERS = {
-    "julio": "1234",  # podés cambiar esto si querés
-}
-
-# Ruta de login
-@app.post("/login")
-def login(data: dict):
-    username = data.get("username")
-    password = data.get("password")
-    if USERS.get(username) == password:
-        return {"message": f"Login OK. Bienvenido {username}"}
-    return {"error": "Credenciales inválidas"}, 401
-
-# Ruta para ver pedidos FLEX
-@app.get("/shipments")
-def get_shipments():
-    access_token = os.getenv("ACCESS_TOKEN")
-    if not access_token:
-        return {"error": "ACCESS_TOKEN no configurado"}
-
-    headers = {
-        "Authorization": f"Bearer {access_token}"
-    }
-
-    response = requests.get("https://api.mercadolibre.com/marketplace/shipments/labels/search?sla_type=flex", headers=headers)
-
-    if response.status_code == 200:
-        data = response.json()
-        shipments = []
-        for result in data.get("results", []):
-            shipments.append({
-                "id": result.get("id"),
-                "name": result.get("receiver", {}).get("name", "N/A"),
-                "phone": result.get("receiver", {}).get("phone", "N/A"),
-            })
-        return shipments
-    else:
-        return {"error": response.text}
-
-# Ruta para obtener el token real desde refresh_token
-@app.get("/get-token")
-def get_token():
+def get_access_token():
     url = "https://api.mercadolibre.com/oauth/token"
     payload = {
         "grant_type": "refresh_token",
@@ -67,8 +25,27 @@ def get_token():
     headers = {"Content-Type": "application/x-www-form-urlencoded"}
 
     response = requests.post(url, data=payload, headers=headers)
-
     if response.status_code == 200:
-        return response.json()
+        return response.json()["access_token"]
     else:
-        return {"error": response.text}
+        raise Exception(f"Error al obtener token: {response.text}")
+
+@app.get("/shipments")
+def get_shipments():
+    try:
+        access_token = get_access_token()
+        url = "https://api.mercadolibre.com/marketplace/shipments/labels/search?sla_type=flex"
+        headers = {"Authorization": f"Bearer {access_token}"}
+        response = requests.get(url, headers=headers)
+        response.raise_for_status()
+        return response.json()
+    except Exception as e:
+        return {"error": str(e)}
+
+@app.get("/get-token")
+def get_token():
+    try:
+        token = get_access_token()
+        return {"access_token": token}
+    except Exception as e:
+        return {"error": str(e)}
