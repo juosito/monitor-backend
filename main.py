@@ -4,15 +4,16 @@ from pydantic import BaseModel
 
 app = FastAPI()
 
-# CORS para permitir llamadas desde Vercel
+# CORS para permitir acceso desde el frontend en Vercel
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # o limitá al dominio exacto si querés
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
+# Modelo para recibir login
 class LoginRequest(BaseModel):
     username: str
     password: str
@@ -21,9 +22,8 @@ class LoginRequest(BaseModel):
 async def login(data: LoginRequest):
     if data.username == "julio" and data.password == "narvaja":
         return {"status": "ok"}
-    return {"status": "error"}
+    return {"status": "error"}, 401
 
 @app.get("/shipments")
 def get_shipments():
     return {"message": "Aquí van los envíos FLEX"}
-
