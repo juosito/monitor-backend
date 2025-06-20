@@ -1,8 +1,7 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
-import os
 import requests
+import os
 
 app = FastAPI()
 
@@ -14,56 +13,37 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-class Credentials(BaseModel):
-    username: str
-    password: str
-
-@app.post("/login")
-def login(data: Credentials):
-    if data.username == "julio" and data.password == "admin123":
-        return {"message": "Login successful"}
-    return {"error": "Invalid credentials"}
-
 @app.get("/shipments")
 def get_shipments():
-    shipments = []
+    try:
+        token1 = os.getenv("REFRESH_TOKEN_NARVAJA")
+        token2 = os.getenv("REFRESH_TOKEN_BUDHASLEEP")
+        client_id = os.getenv("CLIENT_ID")
+        client_secret = os.getenv("CLIENT_SECRET")
 
-    accounts = {
-        "Narvaja": os.getenv("REFRESH_TOKEN_NARVAJA"),
-        "Budhasleep": os.getenv("REFRESH_TOKEN_BUDHASLEEP")
-    }
+        def get_access_token(refresh_token):
+            res = requests.post(
+                "https://api.mercadolibre.com/oauth/token",
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": client_id,
+                    "client_secret": client_secret,
+                    "refresh_token": refresh_token,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            res.raise_for_status()
+            return res.json()["access_token"]
 
-    for name, refresh_token in accounts.items():
-        token_resp = requests.post("https://api.mercadolibre.com/oauth/token", json={
-            "grant_type": "refresh_token",
-            "client_id": os.getenv("CLIENT_ID"),
-            "client_secret": os.getenv("CLIENT_SECRET"),
-            "refresh_token": refresh_token
-        })
+        access_tokens = [get_access_token(token1), get_access_token(token2)]
+        all_shipments = []
 
-        token_data = token_resp.json()
-        access_token = token_data.get("access_token")
-        if not access_token:
-            print(f"Error con token {name}: {token_data}")
-            continue
+        for token in access_tokens:
+            headers = {"Authorization": f"Bearer {token}"}
+            response = requests.get("https://api.mercadolibre.com/flex/shipments", headers=headers)
+            response.raise_for_status()
+            all_shipments.extend(response.json())
 
-        # FLEX = "self_service" o "me2" con modo "custom"
-        orders_resp = requests.get(
-            "https://api.mercadolibre.com/orders/search?seller=me&order.status=paid&tags=ready_to_ship&shipping.mode=me2&shipping.type=default",
-            headers={"Authorization": f"Bearer {access_token}"}
-        )
-
-        orders_data = orders_resp.json()
-        for order in orders_data.get("results", []):
-            buyer = order.get("buyer", {})
-            shipments.append({
-                "id": order["id"],
-                "name": buyer.get("nickname", "Sin nombre"),
-                "phone": buyer.get("phone", {}).get("number", "Sin teléfono")
-            })
-
-    return shipments
-
-@app.post("/mark-delivered/{shipment_id}")
-def mark_delivered(shipment_id: str):
-    return {"message": f"Pedido {shipment_id} marcado como entregado"}
+        return all_shipments
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
