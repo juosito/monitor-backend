@@ -28,34 +28,38 @@ def login(data: Credentials):
 def get_shipments():
     shipments = []
 
-    tokens = {
+    accounts = {
         "Narvaja": os.getenv("REFRESH_TOKEN_NARVAJA"),
         "Budhasleep": os.getenv("REFRESH_TOKEN_BUDHASLEEP")
     }
 
-    for account, refresh_token in tokens.items():
-        token_response = requests.post("https://api.mercadolibre.com/oauth/token", json={
+    for name, refresh_token in accounts.items():
+        token_resp = requests.post("https://api.mercadolibre.com/oauth/token", json={
             "grant_type": "refresh_token",
             "client_id": os.getenv("CLIENT_ID"),
             "client_secret": os.getenv("CLIENT_SECRET"),
             "refresh_token": refresh_token
         })
 
-        access_token = token_response.json().get("access_token")
+        token_data = token_resp.json()
+        access_token = token_data.get("access_token")
         if not access_token:
+            print(f"Error con token {name}: {token_data}")
             continue
 
-        meli_response = requests.get(
-            "https://api.mercadolibre.com/orders/search?seller=me&tags=delivered",
+        # FLEX = "self_service" o "me2" con modo "custom"
+        orders_resp = requests.get(
+            "https://api.mercadolibre.com/orders/search?seller=me&order.status=paid&tags=ready_to_ship&shipping.mode=me2&shipping.type=default",
             headers={"Authorization": f"Bearer {access_token}"}
         )
 
-        orders = meli_response.json().get("results", [])
-        for o in orders:
+        orders_data = orders_resp.json()
+        for order in orders_data.get("results", []):
+            buyer = order.get("buyer", {})
             shipments.append({
-                "id": o["id"],
-                "name": o.get("buyer", {}).get("nickname", "Desconocido"),
-                "phone": o.get("buyer", {}).get("phone", {}).get("number", "Sin teléfono")
+                "id": order["id"],
+                "name": buyer.get("nickname", "Sin nombre"),
+                "phone": buyer.get("phone", {}).get("number", "Sin teléfono")
             })
 
     return shipments
