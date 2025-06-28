@@ -1,49 +1,59 @@
-from fastapi import FastAPI, HTTPException
-from fastapi.middleware.cors import CORSMiddleware
+```python
+from fastapi import FastAPI, Request, HTTPException
+from fastapi.responses import RedirectResponse, HTMLResponse
 import requests
-import os
 
 app = FastAPI()
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+CLIENT_ID = "8230362313334703"
+CLIENT_SECRET = "dbRj5M25cxATQkm7H1TAWrXpvgP38WLh"
+REDIRECT_URI = "https://monitor-frontend-liard.vercel.app/auth"
+
+ACCESS_TOKEN = None
+
+@app.get("/")
+def login():
+    return RedirectResponse(
+        f"https://auth.mercadolibre.com.uy/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
+    )
+
+@app.get("/auth")
+def auth(code: str):
+    global ACCESS_TOKEN
+
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "code": code,
+        "redirect_uri": REDIRECT_URI
+    }
+
+    response = requests.post("https://api.mercadolibre.com/oauth/token", data=payload)
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Error obteniendo el token")
+
+    ACCESS_TOKEN = response.json()["access_token"]
+    return HTMLResponse("<h2>Cuenta conectada correctamente.</h2>")
 
 @app.get("/shipments")
 def get_shipments():
-    try:
-        token1 = os.getenv("REFRESH_TOKEN_NARVAJA")
-        token2 = os.getenv("REFRESH_TOKEN_BUDHASLEEP")
-        client_id = os.getenv("CLIENT_ID")
-        client_secret = os.getenv("CLIENT_SECRET")
+    global ACCESS_TOKEN
+    if not ACCESS_TOKEN:
+        raise HTTPException(status_code=401, detail="Token no disponible")
 
-        def get_access_token(refresh_token):
-            res = requests.post(
-                "https://api.mercadolibre.com/oauth/token",
-                data={
-                    "grant_type": "refresh_token",
-                    "client_id": client_id,
-                    "client_secret": client_secret,
-                    "refresh_token": refresh_token,
-                },
-                headers={"Content-Type": "application/x-www-form-urlencoded"},
-            )
-            res.raise_for_status()
-            return res.json()["access_token"]
+    response = requests.get("https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom", headers={
+        "Authorization": f"Bearer {ACCESS_TOKEN}"
+    })
 
-        access_tokens = [get_access_token(token1), get_access_token(token2)]
-        all_shipments = []
+    if response.status_code != 200:
+        raise HTTPException(status_code=500, detail="Error obteniendo los envíos")
 
-        for token in access_tokens:
-            headers = {"Authorization": f"Bearer {token}"}
-            response = requests.get("https://api.mercadolibre.com/flex/shipments", headers=headers)
-            response.raise_for_status()
-            all_shipments.extend(response.json())
-
-        return all_shipments
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    orders = response.json().get("results", [])
+    result_html = "<h2>Pedidos FLEX</h2><table border='1'><tr><th>ID</th><th>Nombre</th><th>Teléfono</th></tr>"
+    for order in orders:
+        buyer = order.get("buyer", {})
+        result_html += f"<tr><td>{order.get('id')}</td><td>{buyer.get('nickname')}</td><td>{buyer.get('phone', {}).get('number', '')}</td></tr>"
+    result_html += "</table>"
+    return HTMLResponse(result_html)
+```
