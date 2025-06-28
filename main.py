@@ -55,3 +55,4 @@ def get_shipments():
         result_html += f"<tr><td>{order.get('id')}</td><td>{buyer.get('nickname')}</td><td>{buyer.get('phone', {}).get('number', '')}</td></tr>"
     result_html += "</table>"
     return HTMLResponse(result_html)
+
