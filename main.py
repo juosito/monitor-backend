@@ -1,12 +1,12 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
+from dotenv import load_dotenv
 import requests
 import os
-from dotenv import load_dotenv
-
-load_dotenv()
 
 app = FastAPI()
+
+load_dotenv()
 
 CLIENT_ID = os.getenv("CLIENT_ID")
 CLIENT_SECRET = os.getenv("CLIENT_SECRET")
