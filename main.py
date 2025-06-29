@@ -1,28 +1,14 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import RedirectResponse, HTMLResponse
+from fastapi.responses import HTMLResponse
 import requests
 
 app = FastAPI()
 
-CLIENT_ID = "8230362313334703"
-CLIENT_SECRET = "dbRj5M25cxATQkm7H1TAWrXpvgP38WLh"
-REDIRECT_URI = "https://monitor-frontend-liard.vercel.app/auth"
-
-# ⛔ Token fijo (solo para pruebas)
-ACCESS_TOKEN = "TG-6861ab73663d200001ee1dc8-349336310"  # ← pegá acá el token devuelto en el paso de autenticación
-
+ACCESS_TOKEN = "APP_USR-1866199927341274-062313-e5d2f5f76e10bcd5e9d42bcd9b7cf5e2-349336310"  # TOKEN FIJO
 
 @app.get("/")
 def login():
-    return RedirectResponse(
-        f"https://auth.mercadolibre.com.uy/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
-    )
-
-
-@app.get("/auth")
-def auth(code: str):
-    return HTMLResponse("<h2>Autenticación desactivada temporalmente. Usando token fijo.</h2>")
-
+    return HTMLResponse("<h2>El token ya está cargado manualmente.</h2>")
 
 @app.get("/shipments")
 def get_shipments():
@@ -31,11 +17,11 @@ def get_shipments():
 
     response = requests.get(
         "https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom",
-        headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
+        headers={"Authorization": f"Bearer {ACCESS_TOKEN}"}
     )
 
     if response.status_code != 200:
-        raise HTTPException(status_code=500, detail="Error obteniendo los envíos")
+        return HTMLResponse(f"<h2>Error cargando los pedidos ({response.status_code})</h2>")
 
     orders = response.json().get("results", [])
     result_html = "<h2>Pedidos FLEX</h2><table border='1'><tr><th>ID</th><th>Nombre</th><th>Teléfono</th></tr>"
