@@ -1,7 +1,6 @@
-from fastapi import FastAPI, Request, HTTPException
+from fastapi import FastAPI, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
 import requests
-import os
 
 app = FastAPI()
 
@@ -9,7 +8,9 @@ CLIENT_ID = "8230362313334703"
 CLIENT_SECRET = "dbRj5M25cxATQkm7H1TAWrXpvgP38WLh"
 REDIRECT_URI = "https://monitor-frontend-liard.vercel.app/auth"
 
-TOKEN_FILE = "token.txt"
+# ⛔ Token fijo (solo para pruebas)
+ACCESS_TOKEN = "TG-6861ab73663d200001ee1dc8-349336310"  # ← pegá acá el token devuelto en el paso de autenticación
+
 
 @app.get("/")
 def login():
@@ -17,37 +18,21 @@ def login():
         f"https://auth.mercadolibre.com.uy/authorization?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}"
     )
 
+
 @app.get("/auth")
 def auth(code: str):
-    payload = {
-        "grant_type": "authorization_code",
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "code": code,
-        "redirect_uri": REDIRECT_URI
-    }
+    return HTMLResponse("<h2>Autenticación desactivada temporalmente. Usando token fijo.</h2>")
 
-    response = requests.post("https://api.mercadolibre.com/oauth/token", data=payload)
-    if response.status_code != 200:
-        raise HTTPException(status_code=500, detail="Error obteniendo el token")
-
-    access_token = response.json()["access_token"]
-    with open(TOKEN_FILE, "w") as f:
-        f.write(access_token)
-
-    return HTMLResponse("<h2>Cuenta conectada correctamente.</h2>")
 
 @app.get("/shipments")
 def get_shipments():
-    if not os.path.exists(TOKEN_FILE):
+    if not ACCESS_TOKEN:
         raise HTTPException(status_code=401, detail="Token no disponible")
 
-    with open(TOKEN_FILE, "r") as f:
-        access_token = f.read().strip()
-
-    response = requests.get("https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom", headers={
-        "Authorization": f"Bearer {access_token}"
-    })
+    response = requests.get(
+        "https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom",
+        headers={"Authorization": f"Bearer {ACCESS_TOKEN}"},
+    )
 
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Error obteniendo los envíos")
