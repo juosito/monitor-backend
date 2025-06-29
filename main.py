@@ -1,12 +1,16 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
 import requests
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 app = FastAPI()
 
-CLIENT_ID = "8230362313334703"
-CLIENT_SECRET = "dbRj5M25cxATQkm7H1TAWrXpvgP38WLh"
-REDIRECT_URI = "https://monitor-frontend-liard.vercel.app/auth"
+CLIENT_ID = os.getenv("CLIENT_ID")
+CLIENT_SECRET = os.getenv("CLIENT_SECRET")
+REDIRECT_URI = os.getenv("REDIRECT_URI")
 
 ACCESS_TOKEN = None
 
@@ -55,4 +59,3 @@ def get_shipments():
         result_html += f"<tr><td>{order.get('id')}</td><td>{buyer.get('nickname')}</td><td>{buyer.get('phone', {}).get('number', '')}</td></tr>"
     result_html += "</table>"
     return HTMLResponse(result_html)
-
