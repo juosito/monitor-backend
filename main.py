@@ -1,44 +1,54 @@
 from fastapi import FastAPI, HTTPException
-from fastapi.responses import HTMLResponse, RedirectResponse
+from fastapi.responses import HTMLResponse
 import requests
 
 app = FastAPI()
 
-# Token fijo obtenido previamente (cuenta Budha)
-ACCESS_TOKEN = "APP_USR-1866199927341274-062313-e5d2f5f76e10bcd5e9d42bcd9b7cf5e2-349336310"
+CLIENT_ID = "8230362313334703"
+CLIENT_SECRET = "dbRj5M25cxATQkm7H1TAWrXpvgP38WLh"
+REDIRECT_URI = "https://monitor-frontend-liard.vercel.app/auth"
+AUTH_CODE = "TG-6861ad7979d8bc000115477e-349336310"
+
+ACCESS_TOKEN = None
+
+def obtener_token():
+    global ACCESS_TOKEN
+    payload = {
+        "grant_type": "authorization_code",
+        "client_id": CLIENT_ID,
+        "client_secret": CLIENT_SECRET,
+        "code": AUTH_CODE,
+        "redirect_uri": REDIRECT_URI
+    }
+    response = requests.post("https://api.mercadolibre.com/oauth/token", data=payload)
+    if response.status_code == 200:
+        ACCESS_TOKEN = response.json()["access_token"]
+    else:
+        print("Error al obtener el token:", response.text)
 
 @app.get("/")
-def root():
-    return HTMLResponse("<h2>Monitor de Envíos FLEX activo. Usá /shipments para ver los pedidos.</h2>")
+def login():
+    return HTMLResponse("<h2>Monitor backend funcionando. Ir a /shipments para ver pedidos.</h2>")
 
 @app.get("/shipments")
 def get_shipments():
+    global ACCESS_TOKEN
     if not ACCESS_TOKEN:
-        raise HTTPException(status_code=401, detail="Token no disponible")
+        obtener_token()
+        if not ACCESS_TOKEN:
+            raise HTTPException(status_code=401, detail="Token no disponible")
 
-    url = "https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom"
-
-    headers = {
+    response = requests.get("https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom", headers={
         "Authorization": f"Bearer {ACCESS_TOKEN}"
-    }
-
-    response = requests.get(url, headers=headers)
+    })
 
     if response.status_code != 200:
-        return HTMLResponse(f"<h2>Error cargando los pedidos (código {response.status_code}).</h2>")
+        raise HTTPException(status_code=500, detail="Error obteniendo los envíos")
 
     orders = response.json().get("results", [])
-
-    html = "<h2>Pedidos FLEX</h2><table border='1'><tr><th>ID</th><th>Nombre</th><th>Teléfono</th></tr>"
+    result_html = "<h2>Pedidos FLEX</h2><table border='1'><tr><th>ID</th><th>Nombre</th><th>Teléfono</th></tr>"
     for order in orders:
         buyer = order.get("buyer", {})
-        nickname = buyer.get("nickname", "N/A")
-        phone = buyer.get("phone", {}).get("number", "N/A")
-        html += f"<tr><td>{order.get('id')}</td><td>{nickname}</td><td>{phone}</td></tr>"
-    html += "</table>"
-
-    return HTMLResponse(html)
-
-@app.get("/auth")
-def auth():
-    return RedirectResponse(url="/shipments")
+        result_html += f"<tr><td>{order.get('id')}</td><td>{buyer.get('nickname')}</td><td>{buyer.get('phone', {}).get('number', '')}</td></tr>"
+    result_html += "</table>"
+    return HTMLResponse(result_html)
