@@ -1,18 +1,15 @@
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import RedirectResponse, HTMLResponse
-from dotenv import load_dotenv
 import requests
 import os
 
 app = FastAPI()
 
-load_dotenv()
+CLIENT_ID = "8230362313334703"
+CLIENT_SECRET = "dbRj5M25cxATQkm7H1TAWrXpvgP38WLh"
+REDIRECT_URI = "https://monitor-frontend-liard.vercel.app/auth"
 
-CLIENT_ID = os.getenv("CLIENT_ID")
-CLIENT_SECRET = os.getenv("CLIENT_SECRET")
-REDIRECT_URI = os.getenv("REDIRECT_URI")
-
-ACCESS_TOKEN = None
+TOKEN_FILE = "token.txt"
 
 @app.get("/")
 def login():
@@ -22,8 +19,6 @@ def login():
 
 @app.get("/auth")
 def auth(code: str):
-    global ACCESS_TOKEN
-
     payload = {
         "grant_type": "authorization_code",
         "client_id": CLIENT_ID,
@@ -36,17 +31,22 @@ def auth(code: str):
     if response.status_code != 200:
         raise HTTPException(status_code=500, detail="Error obteniendo el token")
 
-    ACCESS_TOKEN = response.json()["access_token"]
+    access_token = response.json()["access_token"]
+    with open(TOKEN_FILE, "w") as f:
+        f.write(access_token)
+
     return HTMLResponse("<h2>Cuenta conectada correctamente.</h2>")
 
 @app.get("/shipments")
 def get_shipments():
-    global ACCESS_TOKEN
-    if not ACCESS_TOKEN:
+    if not os.path.exists(TOKEN_FILE):
         raise HTTPException(status_code=401, detail="Token no disponible")
 
+    with open(TOKEN_FILE, "r") as f:
+        access_token = f.read().strip()
+
     response = requests.get("https://api.mercadolibre.com/orders/search?seller=me&shipping_type=custom", headers={
-        "Authorization": f"Bearer {ACCESS_TOKEN}"
+        "Authorization": f"Bearer {access_token}"
     })
 
     if response.status_code != 200:
